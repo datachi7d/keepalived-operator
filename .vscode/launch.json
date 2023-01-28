@@ -14,7 +14,7 @@
                 "-test.run=TestAPIs"
             ],
             "env": {
-                "KUBEBUILDER_ASSETS": "/home/sean/Downloads/kubebuilder_2.3.2_linux_amd64/bin",
+                "KUBEBUILDER_ASSETS": "${userHome}/.local/share/kubebuilder-envtest/k8s/1.24.1-linux-amd64",
                 "KEEPALIVEDGROUP_TEMPLATE_FILE_NAME": "${workspaceFolder}/config/templates/keepalived-template.yaml"
             },
             "showLog": true
