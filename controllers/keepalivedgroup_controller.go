@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"reflect"
 	"sort"
 	"strings"
 	"text/template"
@@ -58,6 +59,7 @@ const (
 	keepalivedGroupAnnotation               = "keepalived-operator.redhat-cop.io/keepalivedgroup"
 	keepalivedGroupVerbatimConfigAnnotation = "keepalived-operator.redhat-cop.io/verbatimconfig"
 	keepalivedSpreadVIPsAnnotation          = "keepalived-operator.redhat-cop.io/spreadvips"
+	keepalivedUpdateServiceStatus           = "keepalived-operator.redhat-cop.io/updateservicestatus"
 	keepalivedGroupLabel                    = "keepalivedGroup"
 	podMonitorAPIVersion                    = "monitoring.coreos.com/v1"
 	podMonitorKind                          = "PodMonitor"
@@ -206,7 +208,33 @@ func (r *KeepalivedGroupReconciler) Reconcile(context context.Context, req ctrl.
 			return r.ManageError(context, instance, err)
 		}
 	}
+	_, err = r.setServiceStatus(context, instance, services)
+	if err != nil {
+		log.Error(err, "failed to update service status", "services", services)
+		return r.ManageError(context, instance, err)
+	}
 	return r.ManageSuccess(context, instance)
+}
+
+func (r *KeepalivedGroupReconciler) setServiceStatus(context context.Context, instance *redhatcopv1alpha1.KeepalivedGroup, services []corev1.Service) (bool, error) {
+	status_updated := false
+	for _, service := range services {
+		if ann, ok := service.GetAnnotations()[keepalivedUpdateServiceStatus]; ok && ann == "true" {
+			ingress := []corev1.LoadBalancerIngress{}
+			for _, ip := range service.Spec.ExternalIPs {
+				ingress = append(ingress, corev1.LoadBalancerIngress{IP: ip})
+			}
+			if !reflect.DeepEqual(ingress, service.Status.LoadBalancer.Ingress) {
+				service.Status.LoadBalancer.Ingress = ingress
+				err := r.GetClient().Status().Update(context, &service)
+				if err != nil {
+					return false, err
+				}
+				status_updated = true
+			}
+		}
+	}
+	return status_updated, nil
 }
 
 func (r *KeepalivedGroupReconciler) assignRouterIDs(instance *redhatcopv1alpha1.KeepalivedGroup, services []corev1.Service) (bool, error) {
